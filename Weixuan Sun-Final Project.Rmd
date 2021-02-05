@@ -1,0 +1,1123 @@
+---
+title: "Final Project"
+author: "Weixuan Sun"
+date: "December 9th, 2019"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 5
+---
+
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(plotly) 
+options(scipen = 4)
+```
+
+
+First, I download the nlsy79 data from the course website and import dataset.
+
+```{r}
+
+nlsy <- read_csv("nlsy79_income.csv")
+
+# In the variables description file, we can see that there are over 70 variables and names are long, so I change the reference numbers to the question name.
+
+colnames(nlsy) <- c("versionid",
+    "caseid",
+    "birth_country",
+    "FAM-POB_1979",
+    "FAM-3_1979",
+    "FAM-3A_1979",
+    "FAM-RES_1979",
+    "FAM-6_1979",
+    "R_REL-1_COL_1979",
+    "expect_education",
+    "army",
+    "WOMENS-ROLES_000001_1979",
+    "WOMENS-ROLES_000002_1979",
+    "WOMENS-ROLES_000003_1979",
+    "WOMENS-ROLES_000004_1979",
+    "WOMENS-ROLES_000006_1979",
+    "WOMENS-ROLES_000007_1979",
+    "WOMENS-ROLES_000008_1979",
+    "EXP-OCC_1979",
+    "EXP-9_1979",
+    "race",
+    "gender",
+    "MARSTAT-KEY_1979",
+    "FAMSIZE_1979",
+    "povstatus_1979",
+    "police_1980",
+    "POLIC-1C_1980",
+    "POLICE-2_1980",
+    "ALCH-2_1983",
+    "num_drug_1984",
+    "DS-9_1984",
+    "Q13-5_TRUNC_REVISED_1990",
+    "POVSTATUS_1990",
+    "HGCREV90_1990",
+    "jobs.num",
+    "NUMCH90_1990",
+    "AGEYCH90_1990",
+    "DS-12_1998",
+    "DS-13_1998",
+    "INDALL-EMP.01_2000",
+    "CPSOCC80.01_2000",
+    "OCCSP-55I_CODE_2000",
+    "Q2-15B_2000",
+    "Q10-2_2000",
+    "Q13-5_TRUNC_REVISED_2000",
+    "FAMSIZE_2000",
+    "TNFI_TRUNC_2000",
+    "POVSTATUS_2000",
+    "marriage_col_2000",
+    "MARSTAT-KEY_2000",
+    "MO1M1B_XRND",
+    "Q2-10B~Y_2012",
+    "jobtype_2012",
+    "OCCALL-EMP.01_2012",
+    "OCCSP-55I_CODE_2012",
+    "Q2-15A_2012",
+    "Q12-6_2012",
+    "income",
+    "Q13-5_SR000001_2012",
+    "Q13-5_SR000002_2012",
+    "Q13-18_TRUNC_2012",
+    "Q13-18_SR000001_TRUNC_2012",
+    "familysize_2012",
+    "REGION_2012",
+    "HGC_2012",
+    "URBAN-RURAL_2012",
+    "jobsnum_2012")
+
+
+```
+
+#### **Part 1** Some data summaries before cleaning data
+
+```{r}
+# Some table summaries
+table.mean.income.0 <- nlsy %>%
+  group_by(gender,race) %>%
+  summarize(mean.income.0 = round(mean(income), 0))
+table.mean.income.0
+```
+
+```{r}
+# Some graphic summaries
+ggplot(data=nlsy, aes(x=gender, y=income, colour = expect_education)) + geom_boxplot()
+
+```
+
+Discussion: We can see from the rough table and graphic summary dividing income level by gender and race that there are some problems: First, we did not recode factor variables from raw dataset so we do not know what does each number refers to. Second, there are a lot of negative values in raw datasets, which distort the acuuracy of our analysis. Third, we want to explore the differences in income by gender, the raw data hardly shows the result that we want.
+
+#### **Part 2** Data cleaning and Data Summary (with topcoded income) 
+
+```{r}
+# There are over 67 columns in our dataset but we do not need all of those so I first select useful columns that I may need
+
+subset.nlsy <- nlsy %>%
+  select("versionid","caseid","birth_country","expect_education","race","gender","income",
+         "num_drug_1984","marriage_col_2000","familysize_2012","jobsnum_2012")
+
+
+# Remove missing values to get a cleaner dataset
+subset.nlsy[subset.nlsy < 0] <-NA
+
+new.nlsy <- na.omit(subset.nlsy)
+new.nlsy
+
+```
+
+Discussion: I select 11 varibales that maybe useful for my analysis to create a new dataframe called new.nlsy and I remove all negative values(NA).
+
+```{r}
+
+# Convert variables to factors and give the factors more meaningful levels
+
+new.nlsy <- mutate(new.nlsy, 
+                   race = recode_factor(race,
+                                    `3` = "other",    
+                                    `2` = "black",
+                                    `1` = "hispanic"),
+                   gender = recode_factor(gender, 
+                                    `1` = "male",
+                                    `2` = "female"))
+
+new.nlsy <- mutate(new.nlsy, 
+                   num_drug_1984 = recode_factor(num_drug_1984,
+                                    `0` = "never",
+                                    `1` = "1-9",
+                                    `2` = "10-39",
+                                    `3` = "40-99",
+                                    `4` = "100-999",
+                                    `5` = "1000+"),
+                   marriage_col_2000 = recode_factor(marriage_col_2000,
+                                    `2` = "married",
+                                    `1` = "other",
+                                    `3` = "other"),
+                   birth_country = recode_factor(birth_country,
+                                    `1` = "US",
+                                    `2` = "Other"))
+                   
+new.nlsy <- mutate(new.nlsy, 
+                   expect_education = recode_factor(expect_education, 
+                                    `13`= "college",
+                                    `14`= "college",
+                                    `15`= "college",
+                                    `16`= "college",
+                                    `17`= "college",
+                                    `18`= "college",
+                                    `7`= "middle_high",
+                                    `8`= "middle_high",
+                                    `9`= "middle_high",
+                                    `10`= "middle_high",
+                                    `11`= "middle_high",
+                                    `12`= "middle_high",
+                                    `1`= "primary",
+                                    `2`= "primary",
+                                    `3`= "primary",
+                                    `4`= "primary",
+                                    `5`= "primary",
+                                    `6`= "primary"
+                                      ))
+
+new.nlsy
+
+
+```
+
+Discussion: From the dataset, we cans see that most variables are categorical ones and for the convenience of my analysis, I recode some of them and choose baseline variables. For marriage status, I combine never married and other into other; for expected education, I combine 18 levels into primary school, middle_high school and college for better analysis.
+
+```{r}
+# simple summary of the data
+
+str(new.nlsy)
+summary(new.nlsy)
+
+```
+
+Discussion: From str() fuction, we can see that some variables are recoded into factor variables. 
+
+```{r}
+
+# Make some tables to see the average income when broke down by gender and other factor variables
+
+table.mean.income.1 <- new.nlsy %>%
+  group_by(gender,race) %>%
+  summarize(mean.income.1 = round(mean(income), 0))
+
+kable(spread(table.mean.income.1, gender, mean.income.1), 
+      format = "markdown")
+
+table.mean.income.2 <- new.nlsy %>%
+  group_by(gender,expect_education) %>%
+  summarize(mean.income.2 = round(mean(income), 0))
+
+kable(spread(table.mean.income.2, gender, mean.income.2), 
+      format = "markdown")
+
+table.mean.income.3 <- new.nlsy %>%
+  group_by(gender,marriage_col_2000, familysize_2012) %>%
+  summarize(mean.income.3 = round(mean(income), 0))
+table.mean.income.3
+
+table.mean.income.4 <- new.nlsy %>%
+  group_by(gender,birth_country, num_drug_1984) %>%
+  summarize(mean.income.4 = round(mean(income), 0))
+table.mean.income.4
+
+
+``` 
+
+Discussion: In order to investigate income differences by gender, I create some tables exploring the relationship between average income and gender, race, expected education and so on. For example, in table four, the average income of male born in US having 10-39 times of drug even higher than who never has drug not as commonly thought. Therefore, we should further discuss what factors influence the income differences by gender.
+
+```{r}
+
+# Some graphics showing the relationship between gender and income
+
+#qplot
+qplot(x=gender, y=income, data=new.nlsy,
+      color = race,
+      shape = race,
+      xlab = "gender",
+      ylab = "income in 2012") 
+
+# histogram
+ggplot(new.nlsy, aes(x = income)) + xlab("income in 2012") + geom_histogram(aes(fill = gender))
+w <- ggplot(new.nlsy, aes(x = income)) + xlab("income in 2012") + geom_histogram(aes(fill = race))
+ggplotly(w)
+
+# boxplot and violin plot
+ggplot(data=new.nlsy, aes(x=expect_education, y=income, colour = gender)) + geom_boxplot()
+
+s <- ggplot(data=new.nlsy, aes(x=race, y=income, colour = gender)) + geom_boxplot()
+ggplotly(s)
+
+plot.1 <- ggplot(new.nlsy, aes(x = as.factor(familysize_2012), y = income)) +
+  xlab("familysize in 2012") +
+  ylab("income in 2012")
+plot.1 + geom_boxplot()
+
+# If I want to visualize the mean table did in the last part, for example, the barchart of race with income different by gender.
+
+plot.2 <- ggplot(data = table.mean.income.1, 
+                aes(y = mean.income.1, x = race, fill = gender))
+color.2 <- c("#D55E00", "#0072B2")
+plot.2 + geom_bar(stat = "identity", position = "dodge") +
+  ylab("average income in 2012") + 
+  xlab("race") +
+  guides(fill = guide_legend(title = "people's average income in 2012")) + 
+  scale_fill_manual(values=color.2)
+
+
+# If I want to visualize the mean table, for example, the barchart of expect_education with income different by gender.
+
+table.mean.income.5 <- new.nlsy %>%
+  group_by(gender,familysize_2012) %>%
+  summarize(mean.income.5 = round(mean(income), 0))
+table.mean.income.5
+
+plot.3 <- ggplot(data = table.mean.income.5, 
+                aes(y = mean.income.5, x = familysize_2012, fill = gender))
+color.3 <- c("#009E73", "#999999")
+plot.3 + geom_bar(stat = "identity", position = "dodge") +
+  ylab("average income in 2012") + 
+  xlab("family size in 2012") +
+  guides(fill = guide_legend(title = "people's average income in 2012")) + 
+  scale_fill_manual(values=color.3)
+
+
+# If I want to visualize the association between income and familysize_2012 depending on gender
+ggplot(new.nlsy, 
+       aes(x=familysize_2012, y=income, shape=gender, color=gender)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  ylab("income in 2012") + 
+  xlab("number of times having drug in 1984") +
+  ggtitle("income in 2012 by drug condition") 
+
+# density plot 
+qplot(fill = gender, x = income, data = new.nlsy, geom = "density", 
+      alpha = I(0.5),
+      adjust = 1.5, 
+      xlim = c(-4, 6))
+
+
+```
+Dicussion: From various kinds of ggplots, we can roughly see that income/average income in 2012 is not normally distributed bewtween male and female.We can see that over 1500 respondents's income equal zero. Topcoded income(outlier) somewhat affects the distribution of income broken by gender. People in larger family size are more likely to earn higher income. Higher level of expected education are more likely to have higher income.  
+
+#### **significance level**, t-test, p-value etc.
+```{r}
+
+# Find whether there is any correlations between familysize and income
+cor(new.nlsy$familysize_2012,new.nlsy$income)
+
+# Does the correlation vary by gender?
+new.nlsy %>%
+  group_by(gender) %>%
+  summarize(cor_income_family = cor(income, familysize_2012))
+
+# Does the correlation vary by education and num_drug_1984?
+new.nlsy %>%
+  group_by(expect_education, num_drug_1984) %>%
+  summarize(cor_income_family = cor(income, familysize_2012))
+```
+Discussion: I decide to run some correlations between income, gender and other factor variables.Broken down by gender, the correlation between income and familysize within female is -0.0344, which is suprising. Also, when broken down by expected education and number of drugs used in 1984, people who are expected to have college, havig drugs 1000+ times and who are expected to have middle_high never had drug before show negative correlation too.
+
+```{r}
+# Testing differences in income bewteen male and female
+qplot(x = gender, y = income,
+      geom = "boxplot", data = new.nlsy,
+      xlab = "gender", 
+      ylab = "income in 2012",
+      fill = I("lightblue"))
+```
+Discussion: First I use boxplot to see the distribution of income level broken down by gender. Generally, male's income is high than female's. The median of male's income is around 50000 and the median of female's income is around 25000.
+
+
+```{r}
+# Find the mean, standard deviation and standard errors to see wether the relationship between gender and income is statistically significant
+new.nlsy %>%
+  group_by(gender) %>%
+  summarize(num.obs = n(),
+            mean.income = round(mean(income), 0),
+            sd.income = round(sd(income), 0),
+            se.income = round(sd(income) / sqrt(num.obs), 0))
+```
+Discussion: we can see that the average income of male is much more larger than average income of female, but male's standard deviation is much larger than female's. Female's standard errors in income is very small, whcih means that the sample mean is very close to population mean.
+
+```{r}
+# Run a two-sample t-test
+income.t.test <- t.test(income ~ gender, data = new.nlsy)
+income.t.test
+
+```
+Discussion: We can see that the p value is smaller than 2.2e-16, which means that we are 95% confident that the difference in mean between male and female is statistically significant.
+
+```{r}
+# p value
+income.t.test$p.value
+```
+Discussion: The ttest is very small.
+
+```{r}
+# group means in male and female
+income.t.test$estimate
+```
+Discussion: There is significant differences between average income between male and female (55384 and 29996). We are 95% confident that averge income in male is $25388 higher than in female.
+
+
+```{r}
+# confidence interval for the difference
+income.t.test$conf.int
+```
+Discussion: The confidence interval is [22594.80,28181.37]
+
+```{r}
+# Also, try to run a wilcox test
+income.wilcox.test <- wilcox.test(income ~ gender, data=new.nlsy, conf.int=TRUE)
+income.wilcox.test
+
+```
+Discussion: When running a wilcoxcon test, the p value is also smaller than 2.2e-16, which is statitiscally significant.
+
+```{r}
+# exlpore whether data is normal
+ggplot(data = new.nlsy, aes(sample = income)) + stat_qq() + stat_qq_line() + facet_grid(. ~ gender)
+
+```
+Discussion: First we can see from the qqplot that there is extreme high income. Also, it appears that our data is not normally distributed on the regression line.
+
+
+#### **ANOVA**
+```{r}
+# Use ANOVA to test whether there is a significant association between gender and income
+summary(aov(income ~ gender, data = new.nlsy))
+
+# Use ANOVA to test whether there is a significant association between gender, race, expect_education and income
+summary(aov(income ~ gender + race + expect_education, data = new.nlsy))
+
+# Use ANOVA to test whether there is a significant association between gender, num_drug_1984, marriage_col_2000 and income
+summary(aov(income ~ gender + num_drug_1984 + marriage_col_2000, data = new.nlsy))
+
+```
+Discussion: We can see from the three outputs taht all p values are snaller than 2e-16, which means that the p-value is significant at the 0.05 level, there is an association between income and gender, race, num_drug_1984, marriage_col_2000 and so on.
+
+#### ** Linear regression**
+```{r}
+
+# regress outcome variable income against all other variables
+
+lm.1 <- lm(income ~ ., data = new.nlsy)
+lm.1
+summary(lm.1)
+kable(summary(lm.1)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+```
+Discussion: Now we run a regression model, regress income on gender and all other factor variables.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1608, which means that on average 16% of the variance of income can be explained by other factors.
+
+
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, marriage and familsize
+
+lm.2 <- lm(income ~ gender + race + expect_education + marriage_col_2000 + familysize_2012, data = new.nlsy)
+lm.2
+summary(lm.2)
+kable(summary(lm.2)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+
+```
+Discussion: Now we run a regression model, regress income on gender and all other factor variables.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1608, which means that on average 16% of the variance of income can be explained by other factors.
+
+
+
+
+
+```{r}
+
+# Plot the linear regression model
+plot(lm.2)
+
+# Collinearity and pairs plots
+income.var.names.1 <- c("gender", "race", "expect_education", "marriage_col_2000", "familysize_2012")
+
+pairs(new.nlsy[,income.var.names.1])
+
+```
+Discussion: Now we run a regression model, regress income on gender race, expected eduacation, marriage status and familisize. From the residuals fitted graph, we can see that although there are some outliers, generally the residuals have comparatively fan-shape variance, it is not very constant. From the qqplot, I use a linear model for prediction even if the underlying normality assumptions do not hold. Inthis case, the model is not best fitted but seems good. Scale-location plot This is another version of the residuals vs fitted plot. For residuals vs leverage, we can see that high residuals and high leverage (outliers) skew the model fit away from the rest of data.
+
+From the colinearity table, we can see that in this model, the colinear relationship between each variable is very weak.
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, drug and familsize
+
+lm.3 <- lm(income ~ gender + race + expect_education + num_drug_1984 + familysize_2012, data = new.nlsy)
+lm.3
+summary(lm.3)
+kable(summary(lm.3)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+
+```
+Discussion: Now we run a regression model, regress income on gender, race, expect_eudcation, num_drug_1984 and familysize.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. But the p value for number of times having drug is very high, which suggests that drug maybe not a significant factor.The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1476, which means that on average 15% of the variance of income can be explained by other factors.
+
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, jobsnum, marriage and familysize
+
+lm.4 <- lm(income ~ gender + race + jobsnum_2012 + expect_education + marriage_col_2000 + familysize_2012, data = new.nlsy)
+lm.4
+summary(lm.4)
+kable(summary(lm.3)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+
+```
+Discussion: Now we run a regression model, regress income on gender, race, expect_eudcation, jobsnum, marriage and familysize.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. But the p value for number of times having drug is very high, which suggests that drug maybe not a significant factor.The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1577, which means that on average 16% of the variance of income can be explained by other factors.
+
+Interpret the coefficient of genderfemale: on average, hold other variables constant, the income of female is $27574 less than male.
+
+```{r}
+
+# Calculate race-specific intercepts
+intercepts <- c(coef(lm.4)["(Intercept)"],
+                coef(lm.4)["(Intercept)"] + coef(lm.4)["raceblack"],
+                coef(lm.4)["(Intercept)"] + coef(lm.4)["racehispanic"])
+
+lines.df <- data.frame(intercepts = intercepts,
+                       slopes = rep(coef(lm.4)["jobsnum_2012"], 3),
+                       race = levels(new.nlsy$race))
+
+qplot(x = jobsnum_2012, y = income, color = race, data = new.nlsy) + 
+  geom_abline(aes(intercept = intercepts, 
+                  slope = slopes, 
+                  color = race), data = lines.df)
+
+```
+
+Interpreting the coefficient for race:
+The baseline race is other, therefore at this time for raceblack and racehispanic, Among people of the same jobs number in 2012, income of racehispanic people are on average higher than income of raceblack people.
+
+```{r}
+
+# Plot the linear regression model
+plot(lm.4)
+
+# Collinearity and pairs plots
+income.var.names.3 <- c("gender", "race", "jobsnum_2012", "expect_education", "familysize_2012","marriage_col_2000")
+
+pairs(new.nlsy[,income.var.names.3])
+
+```
+Discussion: Now we run a regression model, regress income on gender race, expected eduacation, marriage status and familisize. From the residuals fitted graph, we can see that although there are some outliers, generally the residuals have comparatively fan-shape variance, it is not very constant. From the qqplot, I use a linear model for prediction even if the underlying normality assumptions do not hold. Inthis case, the model is not best fitted but seems good. Scale-location plot This is another version of the residuals vs fitted plot. For residuals vs leverage, we can see that high residuals and high leverage (outliers) skew the model fit away from the rest of data.
+
+From the colinearity table, this time although the colinear relationship between different factor varibales is still weak, it is better than former model. We can see there are some colinearity between jobsnum_2012, expected education and familysize.
+
+
+#### **Do some interactions in regression**
+```{r}
+#Whether race, marriage,familysize is a significant predictor of income differences between male and female
+
+anova(update(lm.4, . ~ . - race), lm.4)
+
+anova(update(lm.4, . ~ . - marriage_col_2000), lm.4)
+
+anova(update(lm.4, . ~ . - familysize_2012), lm.4)
+```
+Discussion: We can see from the three ANOVA outputs that the p values are smaller than 0.05, which means that there is statistically significance.
+
+
+```{r}
+#interact gender with race
+
+lm.4.interact <- update(lm.4, . ~ . + gender*race)
+
+summary(lm.4.interact)
+
+kable(coef(summary(lm.4)), digits = c(0, 0, 2, 4))
+kable(coef(summary(lm.4.interact)), digits = c(0, 0, 2, 4))
+
+```
+Discussion; According to the kables, when we interact gender and race, we can interpret the genderfemale:raceblak that the income difference among blackrace female and blackrace male is $225285 more than the difference between hispanic female and hispanic male. Race is a factor that is highly associated with the income gap between men and women. The coefficients for these factor variables change a lot, which further explains that race is an important factor.
+
+
+```{r}
+
+# Use ANOVA to further discuss whether there is statistically significance in income gaps between different races.
+
+anova(lm.4, lm.4.interact)
+
+```
+
+
+
+```{r}
+
+new.nlsy %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]))
+```
+Discussion: This is the imcome gap betwen different expected education level. It is amazing that the income gap within primary school group is higher than the middle_high school group, which means that with higher level of educations does not directly leads to larger income differences with other people.
+
+```{r}
+
+# Make some error bars to better show the above table
+
+gap <- new.nlsy %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]))
+
+gap<- mutate(gap,
+                   expect_education = reorder(expect_education, -income.gap))
+
+ggplot(data = gap, aes(x = expect_education, y = income.gap, fill = expect_education)) +
+  geom_bar(stat = "identity") +
+  xlab("expected education") + 
+  ylab("Income gap by education") +
+  ggtitle("Income gap between male and female, by expected education") + 
+  guides(fill = FALSE)
+
+
+# Calculate income gaps (male - female) and 95% confidence intervals
+gap.conf <- new.nlsy %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]),
+            upper = t.test(income ~ gender)$conf.int[1],
+                       lower = t.test(income ~ gender)$conf.int[2],
+                       is.significant = as.numeric(t.test(income ~ gender)$p.value < 0.05))
+
+# reorder the expected education factor according to gap size
+gap.conf <- mutate(gap.conf,
+                        expect_education = reorder(expect_education, income.gap))
+
+# error bar plots
+ggplot(data = gap.conf, aes(x = expect_education, y = income.gap,
+                            fill = is.significant)) +
+  geom_bar(stat = "identity") +
+  xlab("expected education") + 
+  ylab("income gap by expected education") +
+  ggtitle("Income gap between male and female by expected education") + 
+  guides(fill = FALSE) +
+  geom_errorbar(aes(ymax = upper, ymin = lower), width = 0.1, size = 1) +
+  theme(text = element_text(size=12)) 
+
+
+
+
+```
+
+
+
+#### **Part 3** Findings (without topcoded income)
+
+```{r}
+# The outcome variable of income in 2012 is topcoded, and we can see from the analysis above that the extreme high income values somewhat affect the results. Therefore, I choose to remove observations that earn highest income to run regression.
+
+# Find the exact value of extreme income values
+max(new.nlsy$income)
+
+# Create a new dataframe that does not contain top 2% of income
+new.nlsy.2 <- subset(new.nlsy, income!= 343830)
+new.nlsy.2
+
+```
+```{r}
+
+# Convert variables to factors and give the factors more meaningful levels
+
+new.nlsy.2 <- mutate(new.nlsy.2, 
+                   race = recode_factor(race,
+                                    `3` = "other",    
+                                    `2` = "black",
+                                    `1` = "hispanic"),
+                   gender = recode_factor(gender, 
+                                    `1` = "male",
+                                    `2` = "female"))
+
+new.nlsy.2 <- mutate(new.nlsy.2, 
+                   num_drug_1984 = recode_factor(num_drug_1984,
+                                    `0` = "never",
+                                    `1` = "1-9",
+                                    `2` = "10-39",
+                                    `3` = "40-99",
+                                    `4` = "100-999",
+                                    `5` = "1000+"),
+                   marriage_col_2000 = recode_factor(marriage_col_2000,
+                                    `2` = "married",
+                                    `1` = "other",
+                                    `3` = "other"),
+                   birth_country = recode_factor(birth_country,
+                                    `1` = "US",
+                                    `2` = "Other"))
+                   
+new.nlsy.2 <- mutate(new.nlsy.2, 
+                   expect_education = recode_factor(expect_education, 
+                                    `13`= "college",
+                                    `14`= "college",
+                                    `15`= "college",
+                                    `16`= "college",
+                                    `17`= "college",
+                                    `18`= "college",
+                                    `7`= "middle_high",
+                                    `8`= "middle_high",
+                                    `9`= "middle_high",
+                                    `10`= "middle_high",
+                                    `11`= "middle_high",
+                                    `12`= "middle_high",
+                                    `1`= "primary",
+                                    `2`= "primary",
+                                    `3`= "primary",
+                                    `4`= "primary",
+                                    `5`= "primary",
+                                    `6`= "primary"
+                                      ))
+
+new.nlsy.2
+
+
+```
+```{r}
+
+# Make some tables to see the average income when broke down by gender and other factor variables
+
+table.mean.income.a <- new.nlsy.2 %>%
+  group_by(gender,race) %>%
+  summarize(mean.income.a = round(mean(income), 0))
+
+kable(spread(table.mean.income.a, gender, mean.income.a), 
+      format = "markdown")
+
+
+``` 
+
+Discussion: When we remove the topcoded income, the distribution of income among male and female is more balanced.
+
+```{r}
+
+# Some graphics showing the relationship between gender and income
+
+ggplot(data=new.nlsy.2, aes(x=race, y=income, colour = gender)) + geom_boxplot()
+
+```
+Discussion: After removing the outliers, people's income divied by gender and race
+
+#### **significance level**, t-test, p-value etc.
+```{r}
+
+# Find whether there is any correlations between familysize and income
+cor(new.nlsy.2$familysize_2012,new.nlsy.2$income)
+
+# Does the correlation vary by gender?
+new.nlsy.2 %>%
+  group_by(gender) %>%
+  summarize(cor_income_family = cor(income, familysize_2012))
+
+# Does the correlation vary by education and num_drug_1984?
+new.nlsy.2 %>%
+  group_by(expect_education, num_drug_1984) %>%
+  summarize(cor_income_family = cor(income, familysize_2012))
+```
+Discussion: I decide to run some correlations between income, gender and other factor variables.Broken down by gender, the correlation between income and familysize within female is -0.03578633, which is suprising. Also, when broken down by expected education and number of drugs used in 1984, people who are expected to have college, havig drugs 1000+ times and who are expected to have middle_high never had drug before show negative correlation too.
+
+```{r}
+# Testing differences in income bewteen male and female
+qplot(x = gender, y = income,
+      geom = "boxplot", data = new.nlsy.2,
+      xlab = "gender", 
+      ylab = "income in 2012",
+      fill = I("lightblue"))
+```
+Discussion: First I use boxplot to see the distribution of income level broken down by gender. Generally, male's income is high than female's. The median of male's income is around 47500 and the median of female's income is around 25000.
+
+
+```{r}
+# Find the mean, standard deviation and standard errors to see wether the relationship between gender and income is statistically significant
+new.nlsy.2 %>%
+  group_by(gender) %>%
+  summarize(num.obs = n(),
+            mean.income = round(mean(income), 0),
+            sd.income = round(sd(income), 0),
+            se.income = round(sd(income) / sqrt(num.obs), 0))
+```
+Discussion: we can see that after removing the topcoded income values, the differences of average income between male and female is smaller.
+
+```{r}
+# Run a two-sample t-test
+income.t.test.a <- t.test(income ~ gender, data = new.nlsy.2)
+income.t.test.a
+
+```
+Discussion: We can see that the p value is smaller than 2.2e-16, which means that we are 95% confident that the difference in mean between male and female is statistically significant.
+
+```{r}
+# p value
+income.t.test.a$p.value
+```
+Discussion: The ttest is very small.
+
+```{r}
+# group means in male and female
+income.t.test.a$estimate
+```
+Discussion: There is significant differences between average income between male and female (43154.29 and 28856.92). We are 95% confident that averge income in male is $14297.37 higher than in female.
+
+
+```{r}
+# confidence interval for the difference
+income.t.test.a$conf.int
+```
+Discussion: The confidence interval is [12545.62,16049.11]
+
+```{r}
+# Also, try to run a wilcox test
+income.wilcox.test.a <- wilcox.test(income ~ gender, data=new.nlsy.2, conf.int=TRUE)
+income.wilcox.test.a
+
+```
+Discussion: When running a wilcoxcon test, the p value is also smaller than 2.2e-16, which is statitiscally significant.
+
+```{r}
+# exlpore whether data is normal
+ggplot(data = new.nlsy.2, aes(sample = income)) + stat_qq() + stat_qq_line() + facet_grid(. ~ gender)
+
+```
+Discussion: After removing the topcoded values, the data seems more normal than before.
+
+
+#### **ANOVA**
+```{r}
+# Use ANOVA to test whether there is a significant association between gender and income
+summary(aov(income ~ gender, data = new.nlsy.2))
+
+# Use ANOVA to test whether there is a significant association between gender, race, expect_education and income
+summary(aov(income ~ gender + race + expect_education, data = new.nlsy.2))
+
+# Use ANOVA to test whether there is a significant association between gender, num_drug_1984, marriage_col_2000 and income
+summary(aov(income ~ gender + num_drug_1984 + marriage_col_2000, data = new.nlsy.2))
+
+```
+Discussion: We can see from the three outputs taht all p values are snaller than 2e-16, which means that the p-value is significant at the 0.05 level, there is an association between income and gender, race, num_drug_1984, marriage_col_2000 and so on.
+
+#### ** Linear regression**
+```{r}
+
+# regress outcome variable income against all other variables
+
+lm.a <- lm(income ~ ., data = new.nlsy.2)
+lm.a
+summary(lm.a)
+kable(summary(lm.1)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+```
+Discussion: Now we run a regression model, regress income on gender and all other factor variables.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1685, which means that on average 17% of the variance of income can be explained by other factors.
+
+
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, marriage and familsize
+
+lm.b <- lm(income ~ gender + race + expect_education + marriage_col_2000 + familysize_2012, data = new.nlsy.2)
+lm.b
+summary(lm.b)
+kable(summary(lm.b)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+
+```
+Discussion: Now we run a regression model, regress income on gender and all other factor variables.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1551, which means that on average 15% of the variance of income can be explained by other factors.
+
+
+
+
+
+```{r}
+
+# Plot the linear regression model
+plot(lm.b)
+
+# Collinearity and pairs plots
+income.var.names.b <- c("gender", "race", "expect_education", "marriage_col_2000", "familysize_2012")
+
+pairs(new.nlsy.2[,income.var.names.b])
+
+```
+Discussion: Now we run a regression model, regress income on gender race, expected eduacation, marriage status and familisize. From the residuals fitted graph, we can see that although there are some outliers, generally the residuals have comparatively fan-shape variance, it is not very constant. From the qqplot, I use a linear model for prediction even if the underlying normality assumptions do not hold. Inthis case, the model is not best fitted but seems good. Scale-location plot This is another version of the residuals vs fitted plot. For residuals vs leverage, we can see that high residuals and high leverage (outliers) skew the model fit away from the rest of data.
+
+From the colinearity table, we can see that in this model, the colinear relationship between each variable is very weak.
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, drug and familsize
+
+lm.c <- lm(income ~ gender + race + expect_education + num_drug_1984 + familysize_2012, data = new.nlsy.2)
+lm.c
+summary(lm.c)
+kable(summary(lm.c)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+
+```
+Discussion: Now we run a regression model, regress income on gender, race, expect_eudcation, num_drug_1984 and familysize.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. But the p value for number of times having drug is very high, which suggests that drug maybe not a significant factor.The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1468, which means that on average 15% of the variance of income can be explained by other factors.
+
+
+```{r}
+
+# regress outcome variable income against gender, race, expect_education, jobsnum, marriage and familysize
+
+lm.d <- lm(income ~ gender + race + jobsnum_2012 + expect_education + marriage_col_2000 + familysize_2012, data = new.nlsy.2)
+lm.d
+summary(lm.d)
+kable(summary(lm.d)$coef, digits = c(3, 3, 3, 4), format = 'markdown')
+
+```
+Discussion: Now we run a regression model, regress income on gender, race, expect_eudcation, jobsnum, marriage and familysize.We can see that most p values are very small even zero (race and expected education), which means that race may be a very significant factor influncing income differences between male and female. But the p value for number of times having drug is very high, which suggests that drug maybe not a significant factor.The p value are all positive, so income is positively associated with all factors. Also for expected education and marriage status. The R squared is 0.1646, which means that on average 16% of the variance of income can be explained by other factors.
+
+Interpret the coefficient of genderfemale: on average, hold other variables constant, the income of female is $15813 less than male.
+
+```{r}
+
+# Calculate race-specific intercepts
+intercepts <- c(coef(lm.d)["(Intercept)"],
+                coef(lm.d)["(Intercept)"] + coef(lm.d)["raceblack"],
+                coef(lm.d)["(Intercept)"] + coef(lm.d)["racehispanic"])
+
+lines.df.d <- data.frame(intercepts = intercepts,
+                       slopes = rep(coef(lm.d)["jobsnum_2012"], 3),
+                       race = levels(new.nlsy.2$race))
+
+qplot(x = jobsnum_2012, y = income, color = race, data = new.nlsy.2) + 
+  geom_abline(aes(intercept = intercepts, 
+                  slope = slopes, 
+                  color = race), data = lines.df.d)
+
+```
+
+Interpreting the coefficient for race:
+The baseline race is other, therefore at this time for raceblack and racehispanic, Among people of the same jobs number in 2012, income of racehispanic people are on average higher than income of raceblack people.
+
+```{r}
+
+# Plot the linear regression model
+plot(lm.d)
+
+# Collinearity and pairs plots
+income.var.names.d <- c("gender", "race", "jobsnum_2012", "expect_education", "familysize_2012","marriage_col_2000")
+
+pairs(new.nlsy.2[,income.var.names.d])
+
+```
+Discussion: Now we run a regression model, regress income on gender race, expected eduacation, marriage status and familisize. From the residuals fitted graph, we can see that although there are some outliers, generally the residuals have comparatively fan-shape variance, it is not very constant. From the qqplot, I use a linear model for prediction even if the underlying normality assumptions do not hold. Inthis case, the model is not best fitted but seems good. Scale-location plot This is another version of the residuals vs fitted plot. For residuals vs leverage, we can see that high residuals and high leverage (outliers) skew the model fit away from the rest of data.
+
+From the colinearity table, this time although the colinear relationship between different factor varibales is still weak, it is better than former model. We can see there are some colinearity between jobsnum_2012, expected education and familysize.
+
+
+#### **Do some interactions in regression**
+```{r}
+#Whether race, marriage,familysize is a significant predictor of income differences between male and female
+
+anova(update(lm.d, . ~ . - race), lm.d)
+
+anova(update(lm.d, . ~ . - marriage_col_2000), lm.d)
+
+anova(update(lm.d, . ~ . - familysize_2012), lm.d)
+```
+Discussion: We can see from the three ANOVA outputs that the p values are smaller than 0.05, which means that there is statistically significance.
+
+
+```{r}
+#interact gender with race
+
+lm.d.interact <- update(lm.d, . ~ . + gender*race)
+
+summary(lm.d.interact)
+
+kable(coef(summary(lm.d)), digits = c(0, 0, 2, 4))
+kable(coef(summary(lm.d.interact)), digits = c(0, 0, 2, 4))
+
+```
+Discussion; According to the kables, when we interact gender and race, we can interpret the genderfemale:raceblak that the income difference among blackrace female and blackrace male is $13868.66 more than the difference between hispanic female and hispanic male. Race is a factor that is highly associated with the income gap between men and women. The coefficients for these factor variables change a lot, which further explains that race is an important factor.
+
+
+```{r}
+
+# Use ANOVA to further discuss whether there is statistically significance in income gaps between different races.
+
+anova(lm.d, lm.d.interact)
+
+```
+
+
+
+```{r}
+
+new.nlsy.2 %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]))
+```
+Discussion: This is the imcome gap betwen different expected education level. It is amazing that the income gap within primary school group is higher than the middle_high school group, which means that with higher level of educations does not directly leads to larger income differences with other people.
+
+```{r}
+
+# Make some error bars to better show the above table
+
+gap <- new.nlsy.2 %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]))
+
+gap<- mutate(gap,
+                   expect_education = reorder(expect_education, -income.gap))
+
+ggplot(data = gap, aes(x = expect_education, y = income.gap, fill = expect_education)) +
+  geom_bar(stat = "identity") +
+  xlab("expected education") + 
+  ylab("Income gap by education") +
+  ggtitle("Income gap between male and female, by expected education") + 
+  guides(fill = FALSE)
+
+
+# Calculate income gaps (male - female) and 95% confidence intervals
+gap.conf <- new.nlsy.2 %>%
+  group_by(expect_education) %>%
+  summarize(income.gap = mean(income[gender == "male"]) -
+              mean(income[gender == "female"]),
+            upper = t.test(income ~ gender)$conf.int[1],
+                       lower = t.test(income ~ gender)$conf.int[2],
+                       is.significant = as.numeric(t.test(income ~ gender)$p.value < 0.05))
+
+# reorder the expected education factor according to gap size
+gap.conf <- mutate(gap.conf,
+                        expect_education = reorder(expect_education, income.gap))
+
+# error bar plots
+ggplot(data = gap.conf, aes(x = expect_education, y = income.gap,
+                            fill = is.significant)) +
+  geom_bar(stat = "identity") +
+  xlab("expected education") + 
+  ylab("income gap by expected education") +
+  ggtitle("Income gap between male and female by expected education") + 
+  guides(fill = FALSE) +
+  geom_errorbar(aes(ymax = upper, ymin = lower), width = 0.1, size = 1) +
+  theme(text = element_text(size=12)) 
+
+```
+
+#### **Part 4** Methodology
+
+In this section you should provide an overview of the approach you took to exploring and analyzing the data. This is where you tell the story of how you got to your main findings. It's too tedious to carefully format plots and tables for every approach you tried, so you can also use this section as a place to explain the various types of analyses that you tried.
+
+1. How did you deal with missing values? What impact does your approach have on the interpretation or generalizability of the resulting analysis?
+
+In the raw data set, there are many negative values ranging from -5 to -1 (non interview, valid skip, invalid skip, dont't know and refusal.), whcih may influence the accuracy of our analysis. Therefore, I first subset the data into a new dataframe cotaining 10+ variables. Then, I transform all the negative values into NA and remove rows that having NA, finally get a smaller dataset with 5826 observations. Removing the missing values allows me a more objective data analysis.
+
+2. How did you deal with topcoded variables? What impact does your approach have on the interpretation or generalizability of the resulting analysis?
+
+First, I make some data summaries and regression analysis of the data with topcoded incomes, which shows that extreme high income (outliers) affect the causal effect between gender, eduacation, race etc. with income. Therefore, I make a box plot and max() function finding out the exact value of income in 2012, which is 343830. Then I subset the data into a new dataframe that does not contain observations with income of $343830 per year. After removing the topcoded values, the income distribution and income difference among gender and race is more interpretable. Outliers distort the coefficients of regression to some extent. But in this case, when I make regression analysis, there is no distinctive differences.
+
+3. Did you produce any tables or plots that you thought would reveal interesting trends but didn't?
+
+I think people who frequently have drugs may have lower income. However, it shows that male born in US having some experience of drug even have higher income.
+
+4. What relationships did you investigate that don't appear in your findings section
+
+I investigate the relationship between familysize and expect_education, the r squared is 0.0018.
+
+5. What's the analysis that you finally settled on? What income and gender related factors do you investigate in the final analysis?
+
+The final analysis that I settled on is setting income as outcome varibale, gender, race, expected education, familisize in 2012, number of times drug used in 1984, number of jobs had in 2012 as related factors to investigate in the final analysis. Expected eudcation, race and familysize are very important factors affecting income by gender. And generally male earn more than female.
+
+
+#### **Part 5** Discussion
+
+1. In this section you should summarize your main conclusions. You should also discuss potential limitations of your analysis and findings. Are there potential confounders that you didn't control for? Are the models you fit believable?
+
+Potential limitations including:
+(1) Most factors are categorical variables, only familysize and number of jobs are numeric, compared to the large numeric value of income, which may distort the objective of analysis. 
+(2) The survey contains questions from 1979 to 2012, it is hard for the long-period continuous interviews to keep consistent, which may meet the situations like duplication and inconsistency. Therefore, I should have more considerations on selecting factor variables that are more likely to have causal impacts on the income in 2012. (Selecting questions that were interviewed in 2012 )
+(3) The classification of education level, college, middle_high school, primary school needs more discussion. I recode the 18 levels of education into three levels and baseline variable is college. Maybe it is unnecessary to do that.
+(4) have tried different factor variables, but r squares are very similar, which means these factors are all important.
+
+Potential confounders: Maybe the number of children one has, one's parents' job type.
+
+The models I fit believable.
+
+2. You should also address the following question: How much confidence do you have in your analysis? Do you believe your conclusions? Are you confident enough in your analysis and findings to present them to policy makers?
+
+Probably I am 90% of confident in my analysis. I believe my conclusions. I am confident enough to present them to policy makers.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
